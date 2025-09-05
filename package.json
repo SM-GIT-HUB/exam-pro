@@ -1,0 +1,28 @@
+{
+  "name": "final_year_project-backend",
+  "version": "1.0.0",
+  "description": "Exam system",
+  "license": "ISC",
+  "author": "WE",
+  "type": "module",
+  "main": "server.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mostakin5290/Final_Year_Project-Backend.git"
+  },
+  "scripts": {
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.35.3",
+    "axios": "^1.11.0",
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "http-status-codes": "^2.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.18.0",
+    "nodemailer": "^7.0.6",
+    "winston": "^3.17.0"
+  }
+}
