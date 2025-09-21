@@ -1,11 +1,12 @@
 import nodemailer from "nodemailer"
+import { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } from "./server-config.js"
 
 export const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
+    host: SMTP_HOST,
+    port: SMTP_PORT,
     secure: false,
     auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: SMTP_USER,
+        pass: SMTP_PASS,
     }
 })

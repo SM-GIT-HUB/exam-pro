@@ -1,10 +1,11 @@
 import mongoose from "mongoose"
-import { ServerConfig, Logger } from "./index.js"
+import Logger from "./logger-config.js"
+import { MONGO_URI } from "./server-config.js"
 
 async function connectToDB()
 {
     try {
-        await mongoose.connect(ServerConfig.MONGO_URI);
+        await mongoose.connect(MONGO_URI);
         Logger.info("✅ Database connected successfully");
     }
     catch(err) {

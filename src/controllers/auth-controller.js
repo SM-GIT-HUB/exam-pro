@@ -1,8 +1,8 @@
 import { StatusCodes } from "http-status-codes"
-import { AuthService } from "../services/index.js"
-import { ErrorResponse, SuccessResponse } from "../utils/common/response.js"
 
-const authService = new AuthService();
+import { ServerConfig } from "../config/index.js"
+import { authService } from "../services/index.js"
+import { ErrorResponse, SuccessResponse } from "../utils/common/response.js"
 
 async function signupmanual(req, res)
 {
@@ -14,7 +14,7 @@ async function signupmanual(req, res)
         return res.status(StatusCodes.OK).json(new SuccessResponse(`You're ready to signup, please enter the otp sent to your email: ${req.body.email}`));
     }
     catch(err) {
-        return res.status(err.statusCode).json(new ErrorResponse(err.message || "Something went wrong", err));
+        return res.status(err.statusCode).json(new ErrorResponse(err.message, err));
     }
 }
 
@@ -33,14 +33,14 @@ async function verifyAndSignupManual(req, res)
         return res.status(StatusCodes.CREATED).json(new SuccessResponse("Signup successful", user));
     }
     catch(err) {
-        return res.status(err.statusCode).json(new ErrorResponse(err.message || "Something went wrong", err));
+        return res.status(err.statusCode).json(new ErrorResponse(err.message, err));
     }
 }
 
 async function githubAuth(req, res)
 {
-    const clientId = process.env.GITHUB_CLIENT_ID;
-    const redirectUri = "http://localhost:3000/api/v1/auth/oauth/github/callback";
+    const clientId = ServerConfig.GITHUB_CLIENT_ID;
+    const redirectUri = `${ServerConfig.SERVER_URL}/api/v1/auth/oauth/github/callback`;
     const githubUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=user:email`;
     return res.redirect(githubUrl);
 }
@@ -51,15 +51,17 @@ async function githubCallback(req, res)
         const { user, token } = await authService.githubOAuth(req.query.code);
 
         res.cookie("access_token", token, {
-            httpOnly: true,
             path: "/",
-            maxAge: 1000 * 60 * 60 * 24
+            secure: false,
+            httpOnly: true,
+            sameSite: "none",
+            maxAge: 1000 * 60 * 60 * 24 * 15,
         })
 
-        return res.redirect("http://localhost:5173");
+        return res.redirect(ServerConfig.FRONTEND_URL);
     }
     catch(err) {
-        return res.status(err.statusCode).json(new ErrorResponse(err.message || "Something went wrong", err));
+        return res.status(err.statusCode).json(new ErrorResponse("Something went wrong", err));
     }
 }
 

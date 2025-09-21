@@ -1,10 +1,7 @@
 import { StatusCodes } from "http-status-codes"
-import { UserService } from "../services/index.js"
-import getNameFromEmail from "../utils/common/email-to-name.js"
-import { hashPassword } from "../utils/passwords/hash-password.js"
-import { ErrorResponse, SuccessResponse } from "../utils/common/response.js";
-
-const userService = new UserService();
+import { userService } from "../services/index.js"
+import { hashPassword } from "../utils/helpers/hash-password.js"
+import { ErrorResponse, SuccessResponse, getNameFromEmail } from "../utils/common/index.js"
 
 async function createUser(req, res)
 {

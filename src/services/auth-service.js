@@ -1,13 +1,11 @@
 import axios from "axios"
-import { UserService } from "./index.js"
 import { StatusCodes } from "http-status-codes"
-import { RedisClient } from "../config/index.js"
+
+import UserService from "./user-service.js"
 import AppError from "../utils/errors/app-error.js"
-import generateOtp from "../utils/common/generate-otp.js"
-import { generateJwt } from "../utils/common/generate-jwt.js"
-import getNameFromEmail from "../utils/common/email-to-name.js"
-import { sendSignupOtpMail } from "../utils/common/send-mails.js"
-import { hashPassword } from "../utils/passwords/hash-password.js"
+import { RedisClient, ServerConfig } from "../config/index.js"
+import { hashPassword } from "../utils/helpers/hash-password.js"
+import { logError, generateJwt, generateOtp, sendSignupOtpMail, getNameFromEmail } from "../utils/common/index.js"
 
 const userService = new UserService();
 
@@ -35,6 +33,8 @@ class AuthService {
             return { Success: true };
         }
         catch(err) {
+            logError("Error in auth-service: signupManual: " + err.message);
+
             if (err instanceof AppError) {
                 throw err;
             }
@@ -82,13 +82,15 @@ class AuthService {
                 passwordHash: await hashPassword(data.password)
             })
 
-            const token = generateJwt(user, "1d");
+            const token = generateJwt(user, "15m");
             const refreshToken = generateJwt(user, "15d");
             await RedisClient.set(`user_${user.email}_refresh_token`, refreshToken, { ex: 60 * 60 * 24 * 15 });
 
             return { user, token };
         }
         catch(err) {
+            logError("Error in auth-service: verifyAndSignupManual: " + err.message);
+
             if (err instanceof AppError) {
                 throw err;
             }
@@ -105,8 +107,8 @@ class AuthService {
     {
         try {
             const tokenRes = await axios.post("https://github.com/login/oauth/access_token", {
-                client_id: process.env.GITHUB_CLIENT_ID,
-                client_secret: process.env.GITHUB_CLIENT_SECRET,
+                client_id: ServerConfig.GITHUB_CLIENT_ID,
+                client_secret: ServerConfig.GITHUB_CLIENT_SECRET,
                 code
             }, {
                 headers: {
@@ -128,10 +130,10 @@ class AuthService {
             })
 
             const githubUser = userRes.data;
-
             let email = githubUser.email;
 
-            if (!email) {
+            if (!email)
+            {
                 const emailsRes = await axios.get("https://api.github.com/user/emails", {
                     headers: { Authorization: `Bearer ${accessToken}` }
                 })
@@ -156,7 +158,7 @@ class AuthService {
             else
                 user = user[0];
 
-            const token = generateJwt(user, "1d");
+            const token = generateJwt(user, "15m");
             const refreshToken = generateJwt(user, "15d");
 
             await RedisClient.set(`user_${email}_refresh_token`, refreshToken, { ex: 60 * 60 * 24 * 15 });
@@ -164,6 +166,8 @@ class AuthService {
             return { user, token };
         }
         catch(err) {
+            logError("Error in auth-service: githubOAuth: " + err.message);
+
             if (err instanceof AppError) {
                 throw err;
             }
