@@ -28,7 +28,7 @@ class AuthService {
                 tries: 2
             }), { ex: 5 * 60 })
 
-            await sendSignupOtpMail(data.email, otp);
+            sendSignupOtpMail(data.email, otp).catch((err) => logError("Error in signupManual" + err.message));
 
             return { Success: true };
         }
