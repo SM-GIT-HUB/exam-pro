@@ -31,7 +31,7 @@ async function validateSignupRequest(req, res, next)
         }
     }
     catch(err) {
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(new ErrorResponse("Something went wrong"));
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(new ErrorResponse("Something went wrong", err));
     }
 
     next();
@@ -66,7 +66,42 @@ async function validateVerifySignupRequest(req, res, next)
         }
     }
     catch(err) {
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(new ErrorResponse("Something went wrong"));
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(new ErrorResponse("Something went wrong", err));
+    }
+
+    next();
+}
+
+async function validateLoginRequest(req, res, next)
+{
+    if (!req.body) {
+        return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("body not found in request"));
+    }
+
+    const { email, password } = req.body;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!email || !emailRegex.test(email)) {
+        return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("Please enter a valid email address"));
+    }
+
+    if (!password || password.length < 6 || password.includes(' ')) {
+        return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("Password must have minimum 6 characters, with no spaces"));
+    }
+
+    try {
+        const [user] = await userService.getByFilter({ email });
+        
+        if (!user) {
+            return res.status(StatusCodes.NOT_FOUND).json(new ErrorResponse("Account not found"));
+        }
+
+        if (user.provider != 'manual') {
+            return res.status(StatusCodes.CONFLICT).json(new ErrorResponse(`Email in use with ${user.provider}`));
+        }
+    }
+    catch(err) {
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(new ErrorResponse("Something went wrong", err));
     }
 
     next();
@@ -118,4 +153,4 @@ async function authCheck(req, res, next)
     next();
 }
 
-export { validateSignupRequest, validateVerifySignupRequest, authCheck }
+export { validateSignupRequest, validateVerifySignupRequest, validateLoginRequest, authCheck }

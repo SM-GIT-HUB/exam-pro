@@ -16,13 +16,13 @@ class CrudService {
             return response;
         }
         catch(err) {
-            logError("Error in crud-service: " + err.message);
+            logError("Error in crud-service: create: " + err.message);
 
             if (err.name.includes("Mongo")) {
-                throw new AppError(`Cannot create a new ${this.modelName} Object:: ${err.errorResponse.errmsg}`, StatusCodes.BAD_REQUEST);
+                throw new AppError("We are having some problems, please try again later", StatusCodes.BAD_REQUEST, `Cannot create a new ${this.modelName} Object:: ${err.errorResponse.errmsg}`);
             }
             
-            throw new AppError(`Cannot create a new ${this.modelName} Object:: ${err}`, StatusCodes.INTERNAL_SERVER_ERROR);
+            throw new AppError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR, `Cannot create a new ${this.modelName} Object:: ${err.message}`);
         }
     }
 
@@ -33,13 +33,13 @@ class CrudService {
             return response;
         }
         catch(err) {
-            logError("Error in crud-service: " + err.message);
+            logError("Error in crud-service: getByFilter: " + err.message);
 
             if (err.name.includes("Mongo")) {
-                throw new AppError(`Cannot get requested data:: ${err.errorResponse.errmsg}`, StatusCodes.BAD_REQUEST);
+                throw new AppError("We are having some problems, please try again later", StatusCodes.BAD_REQUEST, `Cannot get requested data:: ${err.errorResponse.errmsg}`);
             }
             
-            throw new AppError(`Cannot get requested data:: ${err}`, StatusCodes.INTERNAL_SERVER_ERROR);
+            throw new AppError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR, `Cannot get requested data:: ${err.message}`);
         }
     }
 }

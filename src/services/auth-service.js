@@ -4,7 +4,7 @@ import { StatusCodes } from "http-status-codes"
 import UserService from "./user-service.js"
 import AppError from "../utils/errors/app-error.js"
 import { RedisClient, ServerConfig } from "../config/index.js"
-import { hashPassword } from "../utils/helpers/hash-password.js"
+import { comparePassword, hashPassword } from "../utils/helpers/hash-password.js"
 import { logError, generateJwt, generateOtp, sendSignupOtpMail, getNameFromEmail } from "../utils/common/index.js"
 
 const userService = new UserService();
@@ -28,7 +28,7 @@ class AuthService {
                 tries: 2
             }), { ex: 5 * 60 })
 
-            sendSignupOtpMail(data.email, otp).catch((err) => logError("Error in signupManual" + err.message));
+            sendSignupOtpMail(data.email, otp).catch((err) => logError("Error in auth-service: signupManual: " + err.message));
 
             return { Success: true };
         }
@@ -38,7 +38,7 @@ class AuthService {
             if (err instanceof AppError) {
                 throw err;
             }
-            throw new AppError(`Cannot create session right now`, StatusCodes.INTERNAL_SERVER_ERROR);
+            throw new AppError("Cannot create session right now", StatusCodes.INTERNAL_SERVER_ERROR, err.message);
         }
     }
 
@@ -96,10 +96,10 @@ class AuthService {
             }
 
             if (err.name.includes("Mongo")) {
-                throw new AppError(`Cannot create a new ${this.modelName} Object:: ${err.errorResponse.errmsg}`, StatusCodes.BAD_REQUEST);
+                throw new AppError("We are facing some problems, please try again later", StatusCodes.BAD_REQUEST, `Cannot create a new ${this.modelName} Object:: ${err.errorResponse.errmsg}`);
             }
 
-            throw new AppError(`Cannot signup, something went wrong`, StatusCodes.INTERNAL_SERVER_ERROR);
+            throw new AppError("Cannot signup, something went wrong", StatusCodes.INTERNAL_SERVER_ERROR, err.message);
         }
     }
 
@@ -120,7 +120,7 @@ class AuthService {
             const tokenData = tokenRes.data;
 
             if (!tokenData.access_token) {
-                throw new AppError("Failed to get Github access token", StatusCodes.NOT_FOUND);
+                throw new AppError("Please try again", StatusCodes.NOT_FOUND, "Failed to get Github access token");
             }
 
             const accessToken = tokenData.access_token;
@@ -153,7 +153,7 @@ class AuthService {
                 })
             }
             else if (user[0].provider != "github") {
-                throw new AppError(`Email already in use with another provider: ${user[0].provider}`, StatusCodes.BAD_REQUEST);
+                throw new AppError(`Email already in use with ${user[0].provider}`, StatusCodes.BAD_REQUEST);
             }
             else
                 user = user[0];
@@ -173,10 +173,54 @@ class AuthService {
             }
 
             if (err.name.includes("Mongo")) {
-                throw new AppError(`Auth failed:: ${err.errorResponse.errmsg}`, StatusCodes.BAD_REQUEST);
+                throw new AppError("We are facing some problems, please try again later", StatusCodes.BAD_REQUEST, `Auth failed:: ${err.errorResponse.errmsg}`);
             }
 
-            throw new AppError(`Auth failed, something went wrong`, StatusCodes.INTERNAL_SERVER_ERROR);
+            throw new AppError("Something went wrong, please try again", StatusCodes.INTERNAL_SERVER_ERROR, err.message);
+        }
+    }
+
+    async login({ email, password })
+    {
+        try {
+            const [user] = await userService.getByFilter({ email });
+            const passwordHash = user.passwordHash;
+
+            const match = await comparePassword(password, passwordHash);
+
+            if (!match) {
+                throw new AppError("Wrong password", StatusCodes.UNAUTHORIZED);
+            }
+
+            const token = generateJwt(user, "15m");
+            const refreshToken = generateJwt(user, "15d");
+
+            await RedisClient.set(`user_${email}_refresh_token`, refreshToken, { ex: 60 * 60 * 24 * 15 });
+
+            return { user, token };
+        }
+        catch(err) {
+            logError("Error in auth-service: login: " + err.message);
+            
+            if (err instanceof AppError) {
+                throw err;
+            }
+
+            throw new AppError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR, err.message);
+        }
+    }
+
+    async logout(user)
+    {
+        try {
+            const key = `user_${user.email}_refresh_token`;
+            await RedisClient.del(key);
+
+            return {};
+        }
+        catch(err) {
+            logError("Error in auth-service: logout: " + err.message);
+            throw new AppError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR, err.message);
         }
     }
 }

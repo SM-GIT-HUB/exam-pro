@@ -55,14 +55,54 @@ async function githubCallback(req, res)
             secure: false,
             httpOnly: true,
             sameSite: "none",
-            maxAge: 1000 * 60 * 60 * 24 * 15,
+            maxAge: 1000 * 60 * 60 * 24 * 15
         })
 
         return res.redirect(ServerConfig.FRONTEND_URL);
+    }
+    catch(err) {
+        return res.status(err.statusCode).json(new ErrorResponse(err.message, err));
+    }
+}
+
+async function login(req, res)
+{
+    try {
+        const { user, token } = await authService.login({ email: req.body.email, password: req.body.password });
+
+        res.cookie("access_token", token, {
+            path: "/",
+            secure: false,
+            httpOnly: true,
+            sameSite: "none",
+            maxAge: 1000 * 60 * 60 * 24 * 15
+        })
+
+        return res.status(StatusCodes.OK).json(new SuccessResponse("Logged in"));
+    }
+    catch(err) {
+        return res.status(err.statusCode).json(new ErrorResponse(err.message, err));
+    }
+}
+
+async function logout(req, res)
+{
+    try {
+        await authService.logout(req.user);
+
+        res.cookie("access_token", "", {
+            path: "/",
+            secure: false,
+            httpOnly: true,
+            sameSite: "none",
+            maxAge: 0
+        })
+
+        return res.status(StatusCodes.OK).json(new SuccessResponse("Logged out from all devices"));
     }
     catch(err) {
         return res.status(err.statusCode).json(new ErrorResponse("Something went wrong", err));
     }
 }
 
-export { signupmanual, verifyAndSignupManual, githubAuth, githubCallback }
+export { signupmanual, verifyAndSignupManual, githubAuth, githubCallback, login, logout }
