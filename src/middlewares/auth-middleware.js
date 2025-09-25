@@ -1,6 +1,5 @@
 import { StatusCodes } from "http-status-codes"
 
-import { userService } from "../services/index.js"
 import { Logger, RedisClient } from "../config/index.js"
 import { verifyJwt } from "../utils/helpers/verify-jwt.js"
 import { ErrorResponse } from "../utils/common/response.js"
@@ -21,17 +20,6 @@ async function validateSignupRequest(req, res, next)
 
     if (!password || password.length < 6 || password.includes(' ')) {
         return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("Password must have minimum 6 characters, with no spaces"));
-    }
-
-    try {
-        const [user] = await userService.getByFilter({ email });
-        
-        if (user) {
-            return res.status(StatusCodes.CONFLICT).json(new ErrorResponse("This email is already in use, please login"));
-        }
-    }
-    catch(err) {
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(new ErrorResponse("Something went wrong", err));
     }
 
     next();
@@ -58,17 +46,6 @@ async function validateVerifySignupRequest(req, res, next)
         return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("Please provide the OTP sent to your email"));
     }
 
-    try {
-        const [user] = await userService.getByFilter({ email });
-        
-        if (user) {
-            return res.status(StatusCodes.CONFLICT).json(new ErrorResponse("This email is already in use, please login"));
-        }
-    }
-    catch(err) {
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(new ErrorResponse("Something went wrong", err));
-    }
-
     next();
 }
 
@@ -89,19 +66,44 @@ async function validateLoginRequest(req, res, next)
         return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("Password must have minimum 6 characters, with no spaces"));
     }
 
-    try {
-        const [user] = await userService.getByFilter({ email });
-        
-        if (!user) {
-            return res.status(StatusCodes.NOT_FOUND).json(new ErrorResponse("Account not found"));
-        }
+    next();
+}
 
-        if (user.provider != 'manual') {
-            return res.status(StatusCodes.CONFLICT).json(new ErrorResponse(`Email in use with ${user.provider}`));
-        }
+async function validateResetPasswordRequest(req, res, next)
+{
+    if (!req.body) {
+        return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("body not found in request"));
     }
-    catch(err) {
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(new ErrorResponse("Something went wrong", err));
+
+    const { email } = req.body;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!email || !emailRegex.test(email)) {
+        return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("Please enter a valid email address"));
+    }
+
+    next();
+}
+
+async function validateVerifyResetPasswordRequest(req, res, next)
+{
+    if (!req.body) {
+        return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("body not found in request"));
+    }
+
+    const { email, password, otp } = req.body;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!email || !emailRegex.test(email)) {
+        return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("Please enter a valid email address"));
+    }
+
+    if (!password || password.length < 6 || password.includes(' ')) {
+        return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("Password must have minimum 6 characters, with no spaces"));
+    }
+
+    if (!otp) {
+        return res.status(StatusCodes.BAD_REQUEST).json(new ErrorResponse("Please provide the OTP sent to your email"));
     }
 
     next();
@@ -153,4 +155,4 @@ async function authCheck(req, res, next)
     next();
 }
 
-export { validateSignupRequest, validateVerifySignupRequest, validateLoginRequest, authCheck }
+export { validateSignupRequest, validateVerifySignupRequest, validateLoginRequest, validateResetPasswordRequest, validateVerifyResetPasswordRequest, authCheck }

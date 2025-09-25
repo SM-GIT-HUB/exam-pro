@@ -42,6 +42,23 @@ class CrudService {
             throw new AppError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR, `Cannot get requested data:: ${err.message}`);
         }
     }
+
+    async updateByFilter(filter, data)
+    {
+        try {
+            const response = await this.repository.updateByFilter(filter, data);
+            return response;
+        }
+        catch(err) {
+            logError("Error in crud-service: updateByFilter: " + err.message);
+
+            if (err.name.includes("Mongo")) {
+                throw new AppError("We are having some problems, please try again later", StatusCodes.BAD_REQUEST, `Cannot update requested data:: ${err.errorResponse.errmsg}`);
+            }
+            
+            throw new AppError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR, `Cannot update requested data:: ${err.message}`);
+        }
+    }
 }
 
 export default CrudService

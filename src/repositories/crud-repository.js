@@ -15,8 +15,14 @@ class CrudRepository {
 
     async getByFilter(data)
     {
-        const reponse = await UserModel.find(data);
+        const reponse = await this.model.find(data);
         return reponse;
+    }
+
+    async updateByFilter(filter, data)
+    {
+        const response = await this.model.updateOne(filter, data);
+        return response;
     }
 }
 

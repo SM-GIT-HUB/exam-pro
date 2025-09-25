@@ -4,14 +4,14 @@ import { ServerConfig } from "../config/index.js"
 import { authService } from "../services/index.js"
 import { ErrorResponse, SuccessResponse } from "../utils/common/response.js"
 
-async function signupmanual(req, res)
+async function signupManual(req, res)
 {
     try {
         await authService.signupManual({
             email: req.body.email
         })
 
-        return res.status(StatusCodes.OK).json(new SuccessResponse(`You're ready to signup, please enter the otp sent to your email: ${req.body.email}`));
+        return res.status(StatusCodes.OK).json(new SuccessResponse(`You're ready to signup, please enter the OTP sent to your email: ${req.body.email}`));
     }
     catch(err) {
         return res.status(err.statusCode).json(new ErrorResponse(err.message, err));
@@ -25,9 +25,11 @@ async function verifyAndSignupManual(req, res)
         user.passwordHash = null;
 
         res.cookie("access_token", token, {
-            httpOnly: true,
             path: "/",
-            maxAge: 1000 * 60 * 60 * 24
+            secure: false,
+            httpOnly: true,
+            sameSite: "none",
+            maxAge: 1000 * 60 * 60 * 24 * 15
         })
 
         return res.status(StatusCodes.CREATED).json(new SuccessResponse("Signup successful", user));
@@ -85,6 +87,28 @@ async function login(req, res)
     }
 }
 
+async function resetPassword(req, res)
+{
+    try {
+        await authService.resetPassword({ email: req.body.email });
+        return res.status(StatusCodes.OK).json(new SuccessResponse(`Please enter the OTP sent to ${req.body.email}`));
+    }
+    catch(err) {
+        return res.status(err.statusCode).json(new ErrorResponse(err.message, err));
+    }
+}
+
+async function verifyAndResetPassword(req, res)
+{
+    try {
+        await authService.verifyAndResetPassword({ email: req.body.email, password: req.body.password, otp: req.body.otp });
+        return res.status(StatusCodes.OK).json(new SuccessResponse("Password reset successful"));
+    }
+    catch(err) {
+        return res.status(err.statusCode).json(new ErrorResponse(err.message, err));
+    }
+}
+
 async function logout(req, res)
 {
     try {
@@ -105,4 +129,4 @@ async function logout(req, res)
     }
 }
 
-export { signupmanual, verifyAndSignupManual, githubAuth, githubCallback, login, logout }
+export { signupManual, verifyAndSignupManual, githubAuth, githubCallback, login, resetPassword, verifyAndResetPassword, logout }

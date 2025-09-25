@@ -12,25 +12,25 @@ const userService = new UserService();
 class AuthService {
     constructor() {}
 
-    async signupManual(data)
+    async signupManual({ email, password })
     {
         try {
-            const user = await userService.getByFilter({ email: data.email });
+            const [user] = await userService.getByFilter({ email });
 
-            if (user.length) {
-                throw new AppError("The user already exists, please login", StatusCodes.BAD_REQUEST);
+            if (user) {
+                throw new AppError("The user already exists, please login", StatusCodes.CONFLICT);
             }
 
             const otp = generateOtp();
 
-            await RedisClient.set(`otp_signup_${data.email}`, JSON.stringify({
+            await RedisClient.set(`otp_${email}_signup`, JSON.stringify({
                 otp,
                 tries: 2
             }), { ex: 5 * 60 })
 
-            sendSignupOtpMail(data.email, otp).catch((err) => logError("Error in auth-service: signupManual: " + err.message));
+            sendSignupOtpMail(email, otp).catch((err) => logError("Error in auth-service: signupManual: " + err.message));
 
-            return { Success: true };
+            return { success: true };
         }
         catch(err) {
             logError("Error in auth-service: signupManual: " + err.message);
@@ -42,23 +42,27 @@ class AuthService {
         }
     }
 
-    async verifyAndSignupManual(data)
+    async verifyAndSignupManual({ email, password, otp })
     {
         try {
-            const key = `otp_signup_${data.email}`;
-            const resredis = await RedisClient.get(key);
+            const key = `otp_${email}_signup`;
+            const otpData = await RedisClient.get(key);
             
-            if (!resredis) {
+            if (!otpData) {
                 throw new AppError("Otp expired, please signup again", StatusCodes.BAD_REQUEST);
             }
 
-            const otpData = resredis;
-            const ttl = await RedisClient.ttl(key);
+            let [user] = await userService.getByFilter({ email });
+        
+            if (user) {
+                throw new AppError("The user already exists, please login", StatusCodes.CONFLICT);
+            }
 
-            if (data.otp.toString() != otpData.otp.toString())
+            if (otp.toString() != otpData.otp.toString())
             {
                 if (otpData.tries > 1)
                 {
+                    const ttl = await RedisClient.ttl(key);
                     await RedisClient.set(key, JSON.stringify({
                         otp: otpData.otp,
                         tries: 1
@@ -69,17 +73,17 @@ class AuthService {
                 else
                 {
                     await RedisClient.del(key);
-                    throw new AppError("Otp didn't match. Try limit exceed, please Signup again", StatusCodes.BAD_REQUEST);
+                    throw new AppError("Otp didn't match. Try limit exceed, please signup again", StatusCodes.BAD_REQUEST);
                 }
             }
             else
                 await RedisClient.del(key);
 
-            const user = await userService.create({
-                name: getNameFromEmail(data.email),
-                email: data.email,
+            user = await userService.create({
+                name: getNameFromEmail(email),
+                email: email,
                 provider: "manual",
-                passwordHash: await hashPassword(data.password)
+                passwordHash: await hashPassword(password)
             })
 
             const token = generateJwt(user, "15m");
@@ -153,7 +157,7 @@ class AuthService {
                 })
             }
             else if (user[0].provider != "github") {
-                throw new AppError(`Email already in use with ${user[0].provider}`, StatusCodes.BAD_REQUEST);
+                throw new AppError(`Email already in use with ${user[0].provider}`, StatusCodes.CONFLICT);
             }
             else
                 user = user[0];
@@ -184,8 +188,16 @@ class AuthService {
     {
         try {
             const [user] = await userService.getByFilter({ email });
-            const passwordHash = user.passwordHash;
+        
+            if (!user) {
+                throw new AppError("Account not found", StatusCodes.NOT_FOUND);
+            }
 
+            if (user.provider != 'manual') {
+                throw new AppError(`Email in use with ${user.provider}`, StatusCodes.CONFLICT);
+            }
+            
+            const passwordHash = user.passwordHash;
             const match = await comparePassword(password, passwordHash);
 
             if (!match) {
@@ -201,6 +213,107 @@ class AuthService {
         }
         catch(err) {
             logError("Error in auth-service: login: " + err.message);
+            
+            if (err instanceof AppError) {
+                throw err;
+            }
+
+            throw new AppError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR, err.message);
+        }
+    }
+
+    async resetPassword({ email })
+    {
+        try {
+            const [user] = await userService.getByFilter({ email });
+        
+            if (!user) {
+                throw new AppError("Account not found", StatusCodes.NOT_FOUND);
+            }
+
+            if (user.provider != 'manual') {
+                throw new AppError(`Email in use with ${user.provider}`, StatusCodes.CONFLICT);
+            }
+
+            const key = `otp_${email}_password_reset`;
+            const otpData = await RedisClient.get(key);
+
+            if (otpData)
+            {
+                const ttl = await RedisClient.ttl(key);
+                throw new AppError(`Too many requests, please try again after ${Math.ceil(ttl / 60)} minutes`);
+            }
+
+            const otp = generateOtp();
+
+            await RedisClient.set(key, JSON.stringify({
+                otp,
+                tries: 2
+            }), { ex: 5 * 60 })
+
+            sendSignupOtpMail(data.email, otp).catch((err) => logError("Error in auth-service: resetPassword: " + err.message));
+
+            return { success: true };
+        }
+        catch(err) {
+            logError("Error in auth-service: resetPassword: " + err.message);
+            
+            if (err instanceof AppError) {
+                throw err;
+            }
+
+            throw new AppError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR, err.message);
+        }
+    }
+
+    async verifyAndResetPassword({ email, password, otp })
+    {
+        try {
+            const [user] = await userService.getByFilter({ email });
+        
+            if (!user) {
+                throw new AppError("Account not found", StatusCodes.NOT_FOUND);
+            }
+
+            if (user.provider != 'manual') {
+                throw new AppError(`Email in use with ${user.provider}`, StatusCodes.CONFLICT);
+            }
+
+            const key = `otp_${email}_password_reset`;
+            const otpData = await RedisClient.get(key);
+            const ttl = await RedisClient.ttl(key);
+
+            if (!otpData) {
+                throw new AppError("Otp expired, please try again", StatusCodes.BAD_REQUEST);
+            }
+            
+            if (otpData.tries == 0) {
+                throw new AppError(`Try limit exceed, please try again after ${Math.ceil(ttl / 60)} minutes`);
+            }
+
+            if (otp.toString() != otpData.otp.toString())
+            {
+                const remainingTries = otpData.tries - 1;
+                
+                await RedisClient.set(key, JSON.stringify({
+                    otp: otpData.otp,
+                    tries: remainingTries
+                }), { ex: ttl })
+
+                if (remainingTries > 0) {
+                    throw new AppError("Otp didn't match, 1 try remaining", StatusCodes.BAD_REQUEST);
+                }
+                else
+                    throw new AppError(`Otp didn't match. Try limit exceed, please try again after ${Math.ceil(ttl / 60)} minutes`, StatusCodes.BAD_REQUEST);
+            }
+            else
+                await RedisClient.del(key);
+
+            await userService.updateByFilter({ email }, { password: await hashPassword(password) });
+            return { success: true };
+        }
+        catch(err) {
+            logError("Error in auth-service: verifyAndResetPassword: " + err.message);
             
             if (err instanceof AppError) {
                 throw err;

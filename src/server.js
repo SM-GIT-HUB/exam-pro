@@ -1,7 +1,7 @@
 import express from "express"
-import apiRoutes from "./routes/index.js"
-
 import cookieParser from "cookie-parser"
+
+import apiRoutes from "./routes/index.js"
 import { ServerConfig, Logger, connectToDb } from "./config/index.js"
 
 const app = express();
