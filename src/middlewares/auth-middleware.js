@@ -132,9 +132,13 @@ async function authCheck(req, res, next)
     {
         try {
             const refreshToken = await RedisClient.get(`user_${data.email}_refresh_token`);
-            verifyJwt(refreshToken);
+            const redisData =  verifyJwt(refreshToken);
 
-            const access_token = generateJwt(data, "5m");
+            if (data.session.toString() != redisData.session.toString()) {
+                return res.status(StatusCodes.UNAUTHORIZED).json(new ErrorResponse("Your session has expired, please login"));
+            }
+
+            const access_token = generateJwt(data, "15m", redisData.session);
 
             res.cookie("access_token", access_token, {
                 path: "/",

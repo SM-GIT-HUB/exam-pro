@@ -1,8 +1,9 @@
+import crypto from "crypto"
 
 const digs = "0123456789";
 const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-const arr = [digs, chars];
+const arr = digs + chars;
 
 function generateOtp()
 {
@@ -10,9 +11,8 @@ function generateOtp()
 
     for (let i = 0; i < 8; i++)
     {
-        const idx = Math.floor(Math.random() * 2);
-        const ch = arr[idx][Math.floor(Math.random() * arr[idx].length)];
-        otp += ch;
+        const idx = crypto.randomInt(0, arr.length);
+        otp += arr[idx];
     }
 
     return otp;

@@ -5,7 +5,7 @@ import UserService from "./user-service.js"
 import AppError from "../utils/errors/app-error.js"
 import { RedisClient, ServerConfig } from "../config/index.js"
 import { comparePassword, hashPassword } from "../utils/helpers/hash-password.js"
-import { logError, generateJwt, generateOtp, sendSignupOtpMail, getNameFromEmail } from "../utils/common/index.js"
+import { logError, generateJwt, generateOtp, sendOtpMail, getNameFromEmail, generateSession } from "../utils/common/index.js"
 
 const userService = new UserService();
 
@@ -28,7 +28,7 @@ class AuthService {
                 tries: 2
             }), { ex: 5 * 60 })
 
-            sendSignupOtpMail(email, otp).catch((err) => logError("Error in auth-service: signupManual: " + err.message));
+            sendOtpMail(email, otp).catch((err) => logError("Error in auth-service: signupManual: " + err.message));
 
             return { success: true };
         }
@@ -45,17 +45,17 @@ class AuthService {
     async verifyAndSignupManual({ email, password, otp })
     {
         try {
+            let [user] = await userService.getByFilter({ email });
+        
+            if (user) {
+                throw new AppError("The user already exists, please login", StatusCodes.CONFLICT);
+            }
+            
             const key = `otp_${email}_signup`;
             const otpData = await RedisClient.get(key);
             
             if (!otpData) {
                 throw new AppError("Otp expired, please signup again", StatusCodes.BAD_REQUEST);
-            }
-
-            let [user] = await userService.getByFilter({ email });
-        
-            if (user) {
-                throw new AppError("The user already exists, please login", StatusCodes.CONFLICT);
             }
 
             if (otp.toString() != otpData.otp.toString())
@@ -86,8 +86,10 @@ class AuthService {
                 passwordHash: await hashPassword(password)
             })
 
-            const token = generateJwt(user, "15m");
-            const refreshToken = generateJwt(user, "15d");
+            const session = generateSession();
+            const token = generateJwt(user, "15m", session);
+            const refreshToken = generateJwt(user, "15d", session);
+            
             await RedisClient.set(`user_${user.email}_refresh_token`, refreshToken, { ex: 60 * 60 * 24 * 15 });
 
             return { user, token };
@@ -162,8 +164,9 @@ class AuthService {
             else
                 user = user[0];
 
-            const token = generateJwt(user, "15m");
-            const refreshToken = generateJwt(user, "15d");
+            const session = generateSession();
+            const token = generateJwt(user, "15m", session);
+            const refreshToken = generateJwt(user, "15d", session);
 
             await RedisClient.set(`user_${email}_refresh_token`, refreshToken, { ex: 60 * 60 * 24 * 15 });
 
@@ -203,9 +206,10 @@ class AuthService {
             if (!match) {
                 throw new AppError("Wrong password", StatusCodes.UNAUTHORIZED);
             }
-
-            const token = generateJwt(user, "15m");
-            const refreshToken = generateJwt(user, "15d");
+            
+            const session = generateSession();
+            const token = generateJwt(user, "15m", session);
+            const refreshToken = generateJwt(user, "15d", session);
 
             await RedisClient.set(`user_${email}_refresh_token`, refreshToken, { ex: 60 * 60 * 24 * 15 });
 
@@ -241,7 +245,7 @@ class AuthService {
             if (otpData)
             {
                 const ttl = await RedisClient.ttl(key);
-                throw new AppError(`Too many requests, please try again after ${Math.ceil(ttl / 60)} minutes`);
+                throw new AppError(`Too many requests, please try again after ${Math.ceil(ttl / 60)} minutes`, StatusCodes.TOO_MANY_REQUESTS);
             }
 
             const otp = generateOtp();
@@ -251,7 +255,7 @@ class AuthService {
                 tries: 2
             }), { ex: 5 * 60 })
 
-            sendSignupOtpMail(data.email, otp).catch((err) => logError("Error in auth-service: resetPassword: " + err.message));
+            sendOtpMail(email, otp).catch((err) => logError("Error in auth-service: resetPassword: " + err.message));
 
             return { success: true };
         }
@@ -288,7 +292,7 @@ class AuthService {
             }
             
             if (otpData.tries == 0) {
-                throw new AppError(`Try limit exceed, please try again after ${Math.ceil(ttl / 60)} minutes`);
+                throw new AppError(`Try limit exceed, please try again after ${Math.ceil(ttl / 60)} minutes`, StatusCodes.TOO_MANY_REQUESTS);
             }
 
             if (otp.toString() != otpData.otp.toString())
@@ -309,7 +313,7 @@ class AuthService {
             else
                 await RedisClient.del(key);
 
-            await userService.updateByFilter({ email }, { password: await hashPassword(password) });
+            await userService.updateByFilter({ email }, { passwordHash: await hashPassword(password) });
             return { success: true };
         }
         catch(err) {

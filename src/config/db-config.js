@@ -1,6 +1,7 @@
 import mongoose from "mongoose"
 import Logger from "./logger-config.js"
 import { MONGO_URI } from "./server-config.js"
+import { logError } from "../utils/common/log-error.js"
 
 async function connectToDB()
 {
@@ -9,7 +10,7 @@ async function connectToDB()
         Logger.info("✅ Database connected successfully");
     }
     catch(err) {
-        Logger.error("❌ Database connection error:", err);
+        logError("Failed to connect to DB: " + err.message);
         throw err;
     }
 }

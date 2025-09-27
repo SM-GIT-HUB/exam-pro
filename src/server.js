@@ -19,7 +19,6 @@ connectToDb()
         Logger.info(`✅ Server running on port ${ServerConfig.PORT}`);
     })
 })
-.catch((err) => {
-    Logger.error("❌ Failed to connect DB", err);
+.catch(() => {
     process.exit(1);
 })

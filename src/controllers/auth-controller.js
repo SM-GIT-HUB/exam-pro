@@ -102,6 +102,15 @@ async function verifyAndResetPassword(req, res)
 {
     try {
         await authService.verifyAndResetPassword({ email: req.body.email, password: req.body.password, otp: req.body.otp });
+
+        res.cookie("access_token", "", {
+            path: "/",
+            secure: false,
+            httpOnly: true,
+            sameSite: "none",
+            maxAge: 0
+        })
+        
         return res.status(StatusCodes.OK).json(new SuccessResponse("Password reset successful"));
     }
     catch(err) {

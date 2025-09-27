@@ -1,11 +1,12 @@
 import jwt from "jsonwebtoken"
 
-export function generateJwt(user, ttl)
+export function generateJwt(user, ttl, session)
 {
     const payload = {
         id: user._id,
         email: user.email,
-        provider: user.provider
+        provider: user.provider,
+        session
     }
 
     const options = { expiresIn: ttl };
